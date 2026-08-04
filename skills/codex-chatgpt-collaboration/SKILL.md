@@ -16,14 +16,16 @@ When invoked, run this skill before substantive local action. Do not claim that 
 ## Establish the collaboration gate
 
 1. Read and follow the browser-control skill available in the current Codex environment before interacting with the page.
-2. Reuse one managed ChatGPT tab when one exists. Otherwise open one browser tab and navigate it to `https://chatgpt.com/`. Do not create a new tab per task.
-3. Confirm that the page is accessible and one usable chat input is present.
-4. Inspect the visible model control. Select a visible and selectable `Pro` option when offered; otherwise select an option the current UI explicitly labels as its strongest reasoning tier. Do not purchase a plan, change account settings, or infer model rank from product memory.
-5. Record the selected-model label and the visible evidence used for the choice. If the available choices or selected state cannot be read reliably, enter `BLOCKED`; never claim that a globally highest-capability model was used.
-6. Send a minimal connection message: `This is a Codex-ChatGPT connection test. Reply exactly: CONNECTION_OK`.
-7. Wait until generation finishes and read the complete verifiable reply. Paginated or chunked reads are acceptable; do not require one giant DOM extraction.
-8. Enter `CONNECTED` only when page access, model readiness, message delivery, complete reply, and readback all succeed. Record the conversation URL.
-9. If authentication, account selection, CAPTCHA, Passkey, or two-factor verification appears, enter `BLOCKED` and ask the user to complete only that authentication step. Never request or handle credentials.
+2. Reuse one managed ChatGPT tab when one exists. Otherwise open one browser tab and navigate it to `https://chatgpt.com/`. Start a clean gate conversation in that tab. Do not create a new tab per task.
+3. Confirm that the page is accessible, one usable chat input is present, and its composer is empty or contains only the exact unsent gate payload placed by this Skill. Never clear or overwrite a different or unowned draft; start another clean conversation or enter `BLOCKED` if ownership cannot be established.
+4. Place the unsent connection message in the composer and establish input readiness. Visible text alone is insufficient: choose and record a finite wait or recheck bound, then recheck until the application exposes a send-ready or equivalent structural state. If the exact Skill-owned payload is visible but remains unaccepted, clear only that payload, use a different supported input path that produces normal editor events, and recheck without sending.
+5. Inspect the current conversation's visible model control after the composer is ready. The control may appear asynchronously. Choose and record a finite wait or recheck bound, select a visible and selectable `Pro` option when offered, or select an option the current UI explicitly labels as its strongest reasoning tier. Do not inherit model evidence from a prior conversation, purchase a plan, change account settings, or infer model rank from product memory.
+6. Record the selected-model label and the current visible evidence used for the choice. If the available choices or selected state cannot be read reliably after bounded rechecks, enter `BLOCKED`; never claim that a globally highest-capability model was used.
+7. Submit the prepared message exactly once: `This is a Codex-ChatGPT connection test. Reply exactly: CONNECTION_OK`. Confirm that the exact payload appears once in canonical user-authored conversation turns before waiting for the reply; exclude composer drafts, assistant echoes, navigation, and duplicated presentation nodes.
+8. Treat an error, timeout, navigation, or browser interruption during submission as `SEND_UNKNOWN`, not as proof that nothing was sent. Observe the same conversation before any retry. Move to `SEND_RETRY_READY` only when canonical user-turn evidence confirms absence and the exact Skill-owned payload remains available. Issue exactly one fallback from that state and record `FALLBACK_ATTEMPTED`; if its outcome is ambiguous, move to `FALLBACK_UNKNOWN`, observe without another retry, and enter `BLOCKED` unless delivery is confirmed. Also enter `BLOCKED` if the user payload appears more than once.
+9. Choose and record a finite completion bound, then wait until generation finishes and read the complete verifiable reply. Prefer structural completion evidence: an assistant response exists, active generation has ended, response actions or another completion signal are present, and two consecutive reads with an intervening state recheck return the same final content. Do not depend on a single transient status string. Paginated or chunked reads are acceptable; do not require one giant DOM extraction.
+10. Enter `CONNECTED` only when page access, current model evidence, input readiness, exactly-once message delivery, structural completion, and verbatim `CONNECTION_OK` readback all succeed. Record the conversation URL.
+11. If authentication, account selection, CAPTCHA, Passkey, or two-factor verification appears, enter `BLOCKED` and ask the user to complete only that authentication step. Never request or handle credentials.
 
 Do not simulate a connection or infer success from a sent message alone. Run the gate once per Codex task unless the browser session later becomes invalid.
 
@@ -47,16 +49,17 @@ Never treat the bundled scanner as proof that content is safe; it only detects c
 
 ## Run the consultation loop
 
-1. Keep one managed browser tab but start a clean ChatGPT conversation for each Codex task. Preserve login state, not prior task context.
+1. Keep one managed browser tab but start a clean ChatGPT conversation for each Codex task. Preserve login state, not prior task context. Confirm the composer is empty before adding the envelope; never clear or overwrite an unowned draft.
 2. Compute a short SHA-256 task marker from the normalized user request and task envelope. Include it once as `CODEX_TASK_ID:<marker>` so recovery can detect duplicate submission.
 3. Before sending, inspect the current conversation for that exact marker. Reuse an existing complete response instead of sending twice.
-4. Send one complete task envelope instead of fragmented questions.
-5. Wait for the response to finish. Do not rush, interrupt, or blindly resend after a page interruption.
-6. Record a local conversation reference, question count, exact requested deliverables, selected-model evidence, and a faithful response summary. Include the URL in a user-facing report only when the user authorized it; never write it into a repository artifact by default.
-7. Inspect the answer for unsupported assumptions, version claims, missing edge cases, unsafe actions, and conflicts with repository constraints.
-8. Apply only the portions that survive review and are within the user's authorization.
-9. Run proportionate local verification against the stated acceptance criteria.
-10. When evidence contradicts the advice, send the smallest useful correction packet back to ChatGPT: failing command, relevant error, file location, and the correct boundary. Ask for a minimal revision, then review again.
+4. Prepare one complete task envelope instead of fragmented questions. Establish input readiness and obtain visible model evidence for this clean task conversation using recorded finite bounds; do not assume the gate conversation's UI state carried over.
+5. Submit the envelope exactly once, then verify that the exact task marker appears in exactly one canonical user-authored turn. On any ambiguous submission outcome, enter `SEND_UNKNOWN`, observe the same conversation, and follow the recovery rule above before considering one fallback from `SEND_RETRY_READY`.
+6. Wait for the response to finish using a recorded finite bound and structural completion evidence. Do not rush, interrupt, or treat a missing status label as failure when the assistant response is complete and stable across two consecutive reads.
+7. Record a local conversation reference, question count, exact requested deliverables, composer ownership and readiness evidence, wait bounds and exhaustion outcomes, canonical exactly-once send evidence, selected-model evidence, completion and stability evidence, and a faithful response summary. Include the URL in a user-facing report only when the user authorized it; never write it into a repository artifact by default.
+8. Inspect the answer for unsupported assumptions, version claims, missing edge cases, unsafe actions, and conflicts with repository constraints.
+9. Apply only the portions that survive review and are within the user's authorization.
+10. Run proportionate local verification against the stated acceptance criteria.
+11. When evidence contradicts the advice, send the smallest useful correction packet back to ChatGPT: failing command, relevant error, file location, and the correct boundary. Ask for a minimal revision, then review again.
 
 Follow the state transitions and recovery rules in [workflow.md](references/workflow.md). Local evidence outranks external advice.
 

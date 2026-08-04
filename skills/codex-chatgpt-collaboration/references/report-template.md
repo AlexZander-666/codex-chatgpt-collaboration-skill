@@ -8,6 +8,12 @@
 - Connection gate: success / failure / not run
 - Selected model tier: <observed label>
 - Model-selection evidence: <visible choices and selected state>
+- Composer ownership: <clean current conversation and empty or exact Skill-owned draft>
+- Composer-readiness evidence: <accepted-input and send-ready evidence>
+- Wait bounds: <finite composer, model, send-recovery, and completion bounds plus exhaustion outcomes>
+- Send evidence: <exact payload or marker appeared once in canonical user-authored turns>
+- Ambiguous-send recovery: <none / recovered without resend / fallback after confirmed absence / blocked>
+- Completion evidence: <assistant response, generation ended, structural signal, two identical consecutive reads>
 - Conversation reference: <stored locally / unavailable>
 - Conversation URL: <include only when explicitly authorized>
 - Questions sent: <count>
