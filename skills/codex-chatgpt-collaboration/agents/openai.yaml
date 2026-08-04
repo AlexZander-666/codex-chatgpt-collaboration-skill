@@ -1,0 +1,7 @@
+interface:
+  display_name: "Codex × ChatGPT Collaboration"
+  short_description: "Consult highest-tier ChatGPT before every Codex task"
+  default_prompt: "Use $codex-chatgpt-collaboration before starting this task: automatically open or reuse ChatGPT, select Pro or the highest visibly available model, obtain its advice, then execute and verify locally."
+
+policy:
+  allow_implicit_invocation: true

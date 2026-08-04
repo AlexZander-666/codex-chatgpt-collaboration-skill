@@ -1,0 +1,13 @@
+Codex ChatGPT Collaboration Skill
+
+This project adapts concepts and text from:
+https://github.com/manwithshit/codex-chatgpt-collaboration-prompt
+upstream commit: 21c1b57
+
+Original work copyright (c) 2026 manwithshit and licensed under the MIT License.
+The adaptation reorganizes the prompt as a Codex Skill, adds a fail-closed state
+machine, progressive-disclosure references, reporting rules, and a read-only
+context audit helper.
+
+This project is community-maintained and is not an official OpenAI project.
+
