@@ -25,6 +25,20 @@ skills/codex-chatgpt-collaboration
 Use $codex-chatgpt-collaboration to ask ChatGPT Pro to compare these two designs, then verify the recommendation against this repository.
 ```
 
+## 严格前置调用
+
+`allow_implicit_invocation: true` 会最大化自动触发，但 Skill 本身不能强制宿主调度器。若希望每个任务都明确执行，可在全局 `AGENTS.md` 加入：
+
+```markdown
+Before substantive action on every user task, invoke the installed
+`codex-chatgpt-collaboration` skill, including for routine tasks. Let the skill
+automatically open or reuse ChatGPT, select the visible Pro option or another
+UI-labeled strongest reasoning tier, submit the task, and retrieve the complete
+response before Codex executes and verifies locally.
+```
+
+这条宿主规则与 Skill 的隐式调用元数据共同工作。登录、CAPTCHA、Passkey 和多因素认证仍必须由用户本人完成。
+
 ## 结构
 
 ```text
