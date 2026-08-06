@@ -7,6 +7,9 @@
 - 通过隐式调用元数据把自身声明为每个任务的前置编排器；
 - 自动复用或打开一个 ChatGPT 标签页，并选择页面中可见、可选的 Pro，或 UI 明确标记的最强推理档；
 - 先做真实连接门禁，不能读取完整回复就 fail closed；
+- 用规范传输文本重建 ProseMirror 的语义明文，不再把 `innerText`/`textContent` 的 DOM 表示差异误判为正文变化；
+- 通过写前草稿溯源记录识别跨“新聊天”恢复的同任务 Skill 草稿，同时继续保护无法证明所有权的持久草稿；
+- 区分发送前污染与发送后幻影草稿，后者不会追溯性推翻已经确认的消息或阻断回复读取；
 - 验证编辑器已真正接受输入，不把“文字可见”误判为“可以发送”；
 - 对超时和中断使用 `SEND_UNKNOWN` 恢复流程，先确认消息是否已发送，禁止盲目重试造成重复提问；
 - 使用“响应存在、生成结束、内容稳定、回复操作可用”等结构化证据判断完成，不依赖单一状态文案；
@@ -51,10 +54,13 @@ skills/codex-chatgpt-collaboration/
 ├── agents/openai.yaml
 ├── references/
 │   ├── report-template.md
+│   ├── composer-contract.md
 │   ├── security-boundary.md
 │   ├── task-envelope.md
 │   └── workflow.md
-└── scripts/audit_context.py
+└── scripts/
+    ├── audit_context.py
+    └── composer_contract.py
 ```
 
 `audit_context.py` 是只读的轻量 fail-closed 检查器，用于发现常见密钥模式、禁止文件类型和越界路径。它不能替代仓库可信的 secret scanner，也不能证明文件适合外发。
@@ -66,6 +72,8 @@ skills/codex-chatgpt-collaboration/
 - 除登录、验证码、Passkey、CAPTCHA 和二次验证外，页面打开、模型选择、提问和回复读取均由 Codex 自动完成。
 - Skill 只报告页面可观察的选择证据，不声称某个模型在全局上能力最高。
 - 新对话中的模型控件和发送状态可能异步出现；Skill 会在当前对话内做有界等待和复查，不继承上一对话的模型证据。
+- “新聊天”只隔离对话上下文，不视为草稿存储重置；只有预先记录且哈希、长度、标记、附件和发送账本全部一致的草稿才能恢复为 `PERSISTED_SKILL_DRAFT`。
+- 多行正文先将换行规范为 LF，再按编辑器块语义重建并逐代码点、长度和 UTF-8 SHA-256 比较；原始 `innerText` 与 `textContent` 长度仅作诊断。
 - 每个连接消息和任务信封都必须在对话中精确出现一次；发送动作超时不等于发送失败。
 - 每个异步等待都必须选择并记录有限的截止时间或复查次数；用两次连续一致的内容读取证明回复稳定。
 - 默认只发送最小文字上下文；上传文件需要单独、明确授权。

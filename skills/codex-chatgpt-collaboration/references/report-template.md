@@ -8,8 +8,12 @@
 - Connection gate: success / failure / not run
 - Selected model tier: <observed label>
 - Model-selection evidence: <visible choices and selected state>
-- Composer ownership: <clean current conversation and empty or exact Skill-owned draft>
-- Composer-readiness evidence: <accepted-input and send-ready evidence>
+- Pre-input baseline: <stabilization duration, read count, page/conversation/composer identity checks, initialization-attempt count, and observations>
+- Persisted-draft handling: <none / resumed exact PERSISTED_SKILL_DRAFT / blocked unchanged / exact user-authorized one-shot reset and post-reload result>
+- Composer ownership: <empty stable baseline / WRITTEN provenance fields and recovery result / unowned>
+- Payload canonicalization: <source and LF transport lengths, code-point length, line count, UTF-8 SHA-256, and extractor rule version>
+- Composer-readiness evidence: <canonical plaintext/hash/length/marker/attachment/identity equality and send-ready evidence; raw DOM lengths are diagnostic only>
+- Post-send composer anomaly: <none / POST_SEND_PHANTOM_DRAFT observed and whether it self-cleared>
 - Wait bounds: <finite composer, model, send-recovery, and completion bounds plus exhaustion outcomes>
 - Send evidence: <exact payload or marker appeared once in canonical user-authored turns>
 - Ambiguous-send recovery: <none / recovered without resend / fallback after confirmed absence / blocked>
