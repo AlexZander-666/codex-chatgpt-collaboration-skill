@@ -84,7 +84,11 @@ class SkillContractTests(unittest.TestCase):
         required_states = {
             "BASELINE_UNSET",
             "BASELINE_STABLE",
-            "PERSISTED_SKILL_DRAFT",
+            "SAME_TASK_SKILL_DRAFT",
+            "MANAGED_TASK_DRAFT",
+            "MANAGED_TASK_DRAFT_RESET",
+            "STALE_CODEX_DRAFT",
+            "STALE_CODEX_DRAFT_RESET",
             "PERSISTED_UNOWNED_DRAFT",
             "DRAFT_RESET_AUTHORIZED",
             "INPUT_UNREADY",
@@ -109,6 +113,11 @@ class SkillContractTests(unittest.TestCase):
         )
         self.assertIn("exactly once", self.workflow_text)
         self.assertIn("confirmed absent", self.workflow_text)
+        self.assertIn(
+            "three canonical absence reads span at least five seconds",
+            self.workflow_text,
+        )
+        self.assertIn("cannot create a server idempotency key", self.workflow_text)
         self.assertIn("matching message appears more than once", self.workflow_text)
 
     def test_transition_graph_supports_success_and_recovery_traces(self) -> None:
@@ -146,11 +155,11 @@ class SkillContractTests(unittest.TestCase):
             ]
         )
 
-    def test_transition_graph_supports_owned_draft_resume(self) -> None:
+    def test_transition_graph_supports_same_task_draft_resume(self) -> None:
         self.assert_valid_trace(
             [
                 "BASELINE_UNSET",
-                "PERSISTED_SKILL_DRAFT",
+                "SAME_TASK_SKILL_DRAFT",
                 "INPUT_READY",
                 "SEND_ATTEMPTED",
                 "SEND_CONFIRMED",
@@ -160,20 +169,85 @@ class SkillContractTests(unittest.TestCase):
             ]
         )
 
+    def test_transition_graph_resets_stale_codex_draft_for_new_task(self) -> None:
+        self.assert_valid_trace(
+            [
+                "BASELINE_UNSET",
+                "STALE_CODEX_DRAFT",
+                "STALE_CODEX_DRAFT_RESET",
+                "BASELINE_UNSET",
+                "BASELINE_STABLE",
+                "INPUT_UNREADY",
+                "INPUT_READY",
+            ]
+        )
+        transitions = self.parse_transitions()
+        self.assertNotIn("INPUT_READY", transitions["STALE_CODEX_DRAFT"])
+        self.assertNotIn("SEND_ATTEMPTED", transitions["STALE_CODEX_DRAFT"])
+
+    def test_reserved_tab_residual_draft_is_reset_before_input(self) -> None:
+        self.assert_valid_trace(
+            [
+                "BASELINE_UNSET",
+                "MANAGED_TASK_DRAFT",
+                "MANAGED_TASK_DRAFT_RESET",
+                "BASELINE_UNSET",
+                "BASELINE_STABLE",
+                "INPUT_UNREADY",
+                "INPUT_READY",
+            ]
+        )
+        transitions = self.parse_transitions()
+        self.assertNotIn("INPUT_READY", transitions["MANAGED_TASK_DRAFT"])
+        self.assertNotIn("SEND_ATTEMPTED", transitions["MANAGED_TASK_DRAFT"])
+        for phrase in (
+            "record it as `SKILL_RESERVED_TAB`",
+            "zero canonical user turns",
+            "must never be inferred from the ChatGPT domain",
+            "do not claim or relabel a user's shared/manual tab",
+            "Revalidate the reserved-tab identity immediately before the semantic clear",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, self.workflow_text + self.skill_text)
+
     def test_unowned_draft_cannot_be_relabelled_or_auto_cleared(self) -> None:
         transitions = self.parse_transitions()
         self.assertEqual(
             transitions["PERSISTED_UNOWNED_DRAFT"],
             {"DRAFT_RESET_AUTHORIZED", "BLOCKED"},
         )
-        self.assertNotIn("PERSISTED_SKILL_DRAFT", transitions["PERSISTED_UNOWNED_DRAFT"])
+        self.assertNotIn("SAME_TASK_SKILL_DRAFT", transitions["PERSISTED_UNOWNED_DRAFT"])
+        self.assertNotIn("STALE_CODEX_DRAFT_RESET", transitions["PERSISTED_UNOWNED_DRAFT"])
         self.assertIn("Never create or backfill a `WRITTEN` record", self.composer_text)
+
+    def test_new_task_epoch_expires_prior_draft_provenance(self) -> None:
+        for phrase in (
+            "Every new Codex user task starts a new task epoch",
+            "Discard all prior in-memory draft provenance",
+            "never resumed merely because its marker, hash, body, or prior provenance is known",
+            "This exception exists only for interruption recovery inside the current Codex task",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, self.composer_text)
+
+    def test_stale_codex_reset_is_narrow_and_one_shot(self) -> None:
+        for phrase in (
+            "zero attachments",
+            "zero canonical user turns",
+            "legacy Codex task envelope without a fingerprint",
+            "perform one `STALE_CODEX_DRAFT_RESET` action",
+            "It must never clear a same-task recovery draft, arbitrary user prose",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, self.composer_text)
 
     def test_multiline_editor_contract_is_dom_representation_independent(self) -> None:
         for phrase in (
             "Replace `CRLF` with `LF`",
             "Do not trim, collapse whitespace, normalize Unicode",
-            "join adjacent direct blocks with exactly one `LF`",
+            "join adjacent blocks with exactly one `LF`",
+            "Reconstruct canonical ATX heading markers",
+            "join every other adjacent top-level rich block with two `LF` characters",
             "ignore an editor-owned trailing sentinel",
             "Raw `innerText` and `textContent` lengths may be recorded for diagnostics only",
             "UTF-8 SHA-256",
@@ -272,6 +346,7 @@ class SkillContractTests(unittest.TestCase):
     def test_report_keeps_runtime_evidence_separate(self) -> None:
         for field in (
             "Pre-input baseline",
+            "Task epoch",
             "Persisted-draft handling",
             "Payload canonicalization",
             "Composer-readiness evidence",

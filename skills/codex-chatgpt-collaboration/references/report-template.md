@@ -8,15 +8,16 @@
 - Connection gate: success / failure / not run
 - Selected model tier: <observed label>
 - Model-selection evidence: <visible choices and selected state>
+- Task epoch: <new epoch created; prior provenance expired>
 - Pre-input baseline: <stabilization duration, read count, page/conversation/composer identity checks, initialization-attempt count, and observations>
-- Persisted-draft handling: <none / resumed exact PERSISTED_SKILL_DRAFT / blocked unchanged / exact user-authorized one-shot reset and post-reload result>
-- Composer ownership: <empty stable baseline / WRITTEN provenance fields and recovery result / unowned>
-- Payload canonicalization: <source and LF transport lengths, code-point length, line count, UTF-8 SHA-256, and extractor rule version>
+- Persisted-draft handling: <none / current-epoch SAME_TASK_SKILL_DRAFT resume / one-shot MANAGED_TASK_DRAFT_RESET / one-shot STALE_CODEX_DRAFT_RESET / blocked unchanged / exact user-authorized reset>
+- Composer ownership: <SKILL_RESERVED_TAB with immediate ownership rechecks / shared or uncertain tab / current-epoch WRITTEN provenance and recovery result / unowned>
+- Payload canonicalization: <source and LF transport lengths, code-point length, line count, task marker, draft fingerprint, UTF-8 SHA-256, and extractor rule version>
 - Composer-readiness evidence: <canonical plaintext/hash/length/marker/attachment/identity equality and send-ready evidence; raw DOM lengths are diagnostic only>
 - Post-send composer anomaly: <none / POST_SEND_PHANTOM_DRAFT observed and whether it self-cleared>
 - Wait bounds: <finite composer, model, send-recovery, and completion bounds plus exhaustion outcomes>
 - Send evidence: <exact payload or marker appeared once in canonical user-authored turns>
-- Ambiguous-send recovery: <none / recovered without resend / fallback after confirmed absence / blocked>
+- Ambiguous-send recovery: <none / recovered without resend / fallback after three stable absence reads spanning at least five seconds / blocked; note that the browser UI exposes no server idempotency key>
 - Completion evidence: <assistant response, generation ended, structural signal, two identical consecutive reads>
 - Conversation reference: <stored locally / unavailable>
 - Conversation URL: <include only when explicitly authorized>

@@ -2,10 +2,13 @@
 
 Send one bounded message using this structure. Omit fields that do not apply; do not invent facts.
 
+Keep envelope content inside the canonical editor grammar: plain paragraphs, the exact ATX headings below, hyphen bullets, sequential decimal question numbers, and raw URLs whose label is the URL itself. Do not use emphasis, code spans or fences, labeled links, blockquotes, tables, nested lists, or blank list items; write paths, identifiers, commands, and reduced log text as ordinary Unicode text. This restriction makes the editor's rich-text conversion exactly reversible instead of visually approximate.
+
 ```markdown
 You are an external research and design adviser. Do not perform local actions.
 
 CODEX_TASK_ID:<short SHA-256 marker>
+CODEX_DRAFT_SHA256:<full SHA-256 of the LF envelope with this fingerprint line omitted>
 
 ## Objective
 <What decision, analysis, or correction is needed?>

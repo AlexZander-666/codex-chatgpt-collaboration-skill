@@ -38,7 +38,7 @@ A visible and selectable `Pro` option may prove the selected tier for that momen
 
 ## Browser and conversation reuse
 
-Maintain one browser tab across tasks when possible. Open a tab only when no managed or claimable ChatGPT tab exists. For every task, start a clean conversation inside that tab so unrelated task context does not leak. A new-chat route isolates canonical turns; it does not prove that same-origin composer storage is empty or erase verified Skill authorship.
+Maintain one browser tab across tasks when possible. Prefer a tab created by the Skill's browser session and record it as `SKILL_RESERVED_TAB`; do not claim or relabel a user's shared/manual tab for disposable-task cleanup. Every new Codex user task starts a new task epoch, expires all prior payload provenance, and starts a clean conversation inside the reserved tab so unrelated task context does not leak. A new-chat route isolates canonical turns but does not prove that same-origin composer storage is empty. Stable residual text in a provably reserved tab is managed automation state and must be reset before new input; content in a shared or ownership-uncertain tab retains the narrower ownership rules below.
 
 Include a deterministic `CODEX_TASK_ID:<marker>` in the submitted envelope. After interruption, search the current conversation for that marker before retrying. If the message exists, recover or wait for its response; do not resend it.
 
@@ -50,7 +50,11 @@ Use these substates for both the connection message and the task envelope. They 
 | --- | --- | --- |
 | `BASELINE_UNSET` | The active page, conversation, or composer identity is new or changed | Observe without input until the stabilization bound passes, or classify pre-input content |
 | `BASELINE_STABLE` | At least three empty, attachment-free, non-sendable reads span at least five seconds after the last identity change | Freeze the transport payload and attachment manifest, create write-ahead provenance, then use one semantic input action |
-| `PERSISTED_SKILL_DRAFT` | A pre-existing `WRITTEN` provenance record and every exact recovery check prove this unsent draft was placed by this Skill for the active task before navigation | Resume canonical readiness validation without rewriting, clearing, or consuming another initialization attempt |
+| `SAME_TASK_SKILL_DRAFT` | A `WRITTEN` provenance record from the current task epoch and every exact recovery check prove this unsent draft was placed by this Skill before an interruption | Resume canonical readiness validation without rewriting or clearing |
+| `MANAGED_TASK_DRAFT` | Stable pre-input text exists in a recorded `SKILL_RESERVED_TAB`, with zero attachments and zero canonical user turns in the new conversation | Re-read and perform one `MANAGED_TASK_DRAFT_RESET`; never submit or reuse the residual text |
+| `MANAGED_TASK_DRAFT_RESET` | Reserved-tab identity, exact canonical text, zero attachments, and zero user turns still match immediately before the action | Perform one semantic clear, one reload, and one complete stabilization cycle; never retry |
+| `STALE_CODEX_DRAFT` | At a new task epoch, zero attachments and zero canonical user turns accompany an exact connection payload or a complete validated Codex task envelope | Re-read and perform one `STALE_CODEX_DRAFT_RESET`; never reuse or submit the stale content |
+| `STALE_CODEX_DRAFT_RESET` | The stale classifier still matches immediately before the action | Perform one semantic clear, one reload, and one complete stabilization cycle; never retry |
 | `PERSISTED_UNOWNED_DRAFT` | Pre-input text or attachments exist without complete write-ahead ownership proof | Preserve unchanged; request exact task-local removal authorization or enter `BLOCKED` |
 | `DRAFT_RESET_AUTHORIZED` | The user explicitly authorized removal of the exact observed unowned text and there are zero attachments | Perform one semantic clear, one reload, and one complete stabilization cycle; never retry |
 | `INPUT_UNREADY` | Canonical payload equality, attachment equality, stable composer identity, or a send-ready structural state has not yet been established | Wait and recheck; do not use raw DOM serialization as a multiline equality gate |
@@ -60,7 +64,7 @@ Use these substates for both the connection message and the task envelope. They 
 | `SEND_CONFIRMED` | The exact user payload or task marker appears exactly once in canonical user-authored turns | Wait for the response |
 | `POST_SEND_PHANTOM_DRAFT` | Unexpected composer text appears only after delivery was confirmed | Do not focus, clear, overwrite, or send it; continue observing the already-sent response and record the draft separately |
 | `SEND_UNKNOWN` | The send action timed out, errored, navigated, or was interrupted before its outcome was established | Reacquire and inspect the same conversation |
-| `SEND_RETRY_READY` | Canonical user-turn evidence confirms absence, and the exact Skill-owned unsent payload remains available | Issue at most one fallback submission |
+| `SEND_RETRY_READY` | At least three canonical user-turn absence reads spanning at least five seconds confirm absence while the exact Skill-owned unsent payload, composer identity, conversation identity, enabled send control, and inactive-generation state remain unchanged | Immediately recheck, then issue at most one fallback submission |
 | `FALLBACK_ATTEMPTED` | The single permitted fallback send action was issued | Observe the conversation; never issue another send action |
 | `FALLBACK_UNKNOWN` | The fallback action had an ambiguous outcome | Reacquire and inspect; confirm delivery or enter `BLOCKED` |
 | `RESPONSE_OBSERVED` | An assistant response exists and active generation has ended | Confirm stable completion and read final content |
@@ -70,8 +74,12 @@ Use this transition graph as the normative recovery contract:
 
 <!-- CONTRACT_TRANSITIONS_START -->
 ```text
-BASELINE_UNSET -> BASELINE_STABLE | PERSISTED_SKILL_DRAFT | PERSISTED_UNOWNED_DRAFT | BLOCKED
-PERSISTED_SKILL_DRAFT -> INPUT_UNREADY | INPUT_READY | BLOCKED
+BASELINE_UNSET -> BASELINE_STABLE | SAME_TASK_SKILL_DRAFT | MANAGED_TASK_DRAFT | STALE_CODEX_DRAFT | PERSISTED_UNOWNED_DRAFT | BLOCKED
+SAME_TASK_SKILL_DRAFT -> INPUT_UNREADY | INPUT_READY | BLOCKED
+MANAGED_TASK_DRAFT -> MANAGED_TASK_DRAFT_RESET | BLOCKED
+MANAGED_TASK_DRAFT_RESET -> BASELINE_UNSET | BLOCKED
+STALE_CODEX_DRAFT -> STALE_CODEX_DRAFT_RESET | BLOCKED
+STALE_CODEX_DRAFT_RESET -> BASELINE_UNSET | BLOCKED
 PERSISTED_UNOWNED_DRAFT -> DRAFT_RESET_AUTHORIZED | BLOCKED
 DRAFT_RESET_AUTHORIZED -> BASELINE_UNSET | BLOCKED
 BASELINE_STABLE -> INPUT_UNREADY | BLOCKED
@@ -89,7 +97,7 @@ RESPONSE_OBSERVED -> CONTENT_VERIFIED | BLOCKED
 ```
 <!-- CONTRACT_TRANSITIONS_END -->
 
-Never transition directly from `SEND_UNKNOWN` to `SEND_ATTEMPTED`. A fallback submission is allowed only from `SEND_RETRY_READY`, which is consumed by `FALLBACK_ATTEMPTED` and cannot be re-entered. `FALLBACK_UNKNOWN` permits observation only, never another send. Exactly-once delivery is the invariant; a confirmed failed initial action followed by one fallback may produce two send attempts but still only one canonical user message. More than one matching user message is a duplicate-send violation and requires `BLOCKED`.
+Never transition directly from `SEND_UNKNOWN` to `SEND_ATTEMPTED`. A fallback submission is allowed only after at least three canonical absence reads span at least five seconds and the conversation identity, composer identity, exact unsent payload, enabled send control, and inactive-generation state remain unchanged through an immediate pre-fallback recheck. This browser-only grace gate cannot create a server idempotency key; record that residual limitation instead of claiming one. `SEND_RETRY_READY` is consumed by `FALLBACK_ATTEMPTED` and cannot be re-entered. `FALLBACK_UNKNOWN` permits observation only, never another send. Exactly-once delivery is the invariant; a confirmed failed initial action followed by one fallback may produce two send attempts but still only one canonical user message. More than one matching user message is a duplicate-send violation and requires `BLOCKED`.
 
 Canonical message evidence counts only user-authored conversation turns in the active conversation. Exclude composer drafts, assistant content or echoes, sidebar and navigation text, accessibility duplicates, and repeated presentation nodes. The task marker is the preferred canonical key for an envelope; use the exact payload for the connection gate.
 
@@ -97,15 +105,21 @@ Use [composer-contract.md](composer-contract.md) as the normative payload, edito
 
 The baseline bound begins after the last page, conversation, or composer-DOM identity change and requires at least three empty text-and-attachment reads spanning at least five seconds; every read must also show a non-sendable composer. Identity and route rechecks must occur between reads; a composer node replacement restarts the bound. A first empty render, reload, same-URL navigation, placeholder text, or two rapid empty reads does not establish a reset. Revalidate identity, ownership, canonical payload, attachments, and send readiness immediately before submission.
 
-Immediately before semantic input, create an in-memory provenance record in state `PREPARED`. Promote it to `WRITTEN` only after the post-write canonical checks pass. Never backfill authorship from content discovered later. After a conversation or composer change, exact content restored from a `WRITTEN` record with zero send actions and zero matching canonical user turns is `PERSISTED_SKILL_DRAFT`; continue without another fill or clear. Thus route changes do not erase authorship, but a marker or visual match alone never creates it.
+At every new Codex user task, mint a new task epoch and discard all earlier provenance before inspecting the composer. Immediately before semantic input, create an in-memory provenance record in state `PREPARED` for that epoch. Promote it to `WRITTEN` only after the post-write canonical checks pass. Never backfill authorship from content discovered later. After a conversation or composer change inside the same epoch, exact content restored from a current-epoch `WRITTEN` record with zero send actions and zero matching canonical user turns is `SAME_TASK_SKILL_DRAFT`; continue without another fill or clear. That authorization expires at the next user task even if the payload and marker are identical.
 
-All other content appearing before the first Skill input is `PERSISTED_UNOWNED_DRAFT`. Opening another tab or new-chat route does not isolate same-origin draft persistence. Do not loop on tabs, clear site storage, use keyboard selection/deletion, overwrite the draft with the payload, or relabel it as IME residue. Without exact task-local authorization, preserve it and enter `BLOCKED`. General urgency, permission to continue, or the fact that the draft matches the current topic is not deletion authorization.
+In a recorded `SKILL_RESERVED_TAB`, any stable composer text discovered before the first input of a new clean conversation is `MANAGED_TASK_DRAFT` only when canonical user turns and attachments are both zero. Stabilize and record the exact text before classification. Revalidate the reserved-tab identity immediately before the semantic clear and again before the post-clear reload; any ownership uncertainty aborts without another action. `MANAGED_TASK_DRAFT_RESET` permits one semantic clear, followed by empty-text, zero-attachment, disabled-send verification, exactly one reload, and the full baseline bound. If ownership of the tab is uncertain, text changes, an attachment or user turn exists, clearing is ambiguous, or content reappears, enter `BLOCKED`; never retry, overwrite with the new payload, or clear site storage. This state applies only to a browser-session-owned disposable collaboration tab and must never be inferred from the ChatGPT domain, route, login, model label, or the fact that Codex can control the tab.
+
+Outside a provably reserved tab, at a new task epoch an exact fixed connection payload or complete validated Codex envelope is `STALE_CODEX_DRAFT`, not same-task state and not a candidate for submission. Require zero attachments, zero canonical user turns in the new conversation, and the complete classifier in [composer-contract.md](composer-contract.md). Fingerprinted envelopes must recompute exactly. Legacy envelopes without fingerprints must have exactly two non-empty top lines containing one valid hexadecimal marker and one recognized Codex external-review preamble, followed by the six core headings exactly once in order; the older optional evidence heading may be present or absent. This narrow legacy path removes drafts made before the fingerprint upgrade without accepting a marker alone.
+
+`STALE_CODEX_DRAFT_RESET` allows one semantic clear only. Immediately before clearing, re-read the canonical draft and require the same classifier result, zero attachments, and zero canonical user turns. Then require empty canonical text, zero attachments, and a disabled send control; reload exactly once and run the full baseline bound. A mismatch, attachment, action error, reappearance, or sendable empty editor is `BLOCKED`. Do not retry, submit the stale content, or clear broader site storage.
+
+All other content appearing before the first Skill input in a shared or ownership-uncertain tab is `PERSISTED_UNOWNED_DRAFT`. Opening another tab or new-chat route does not isolate same-origin draft persistence. Do not loop on tabs, clear site storage, use keyboard selection/deletion, overwrite the draft with the payload, relabel a shared tab as reserved, or relabel the content as a stale Codex draft from a marker or partial structure. Without exact task-local authorization, preserve it and enter `BLOCKED`. General urgency, permission to continue, or the fact that the draft matches the current topic is not deletion authorization.
 
 When the user explicitly identifies and authorizes removal of the exact observed draft, `DRAFT_RESET_AUTHORIZED` permits one clear attempt only. Immediately before clearing, require exact canonical code-point equality with the authorized text and zero attachments. Use a semantic editor replacement action that produces normal editor events, then require empty text, zero attachments, and a disabled send control. Reload the Skill-created page exactly once and run the complete baseline bound again. A changed draft, attachment, action error, reappearance, or sendable empty editor is `BLOCKED`; do not retry or clear broader site data.
 
 After `BASELINE_STABLE`, prefer a locator-level fill action. Do not use coordinate typing, paste, or keyboard shortcuts as the primary path because they can interact with IME composition or the wrong focused node. If unexpected canonical content or a composer-DOM replacement appears after Skill input, use `DRAFT_CONTAMINATED` and abandon it without clearing. Retry once in a genuinely new conversation only after establishing another stable baseline. Across one gate or task, the initial page/conversation initialization plus one automatic initialization retry is the hard maximum. A failed baseline consumes that attempt; recovery cannot recurse, create more tabs, or reset the exactly-once send-action ledger.
 
-Unexpected composer text observed only after `SEND_CONFIRMED` is `POST_SEND_PHANTOM_DRAFT`. It cannot be cleared, overwritten, focused, or sent, but it does not retroactively invalidate the canonical sent turn or block completion reads. If it persists into a later pre-input baseline without qualifying provenance, reclassify it as `PERSISTED_UNOWNED_DRAFT` for that later write attempt.
+Unexpected composer text observed only after `SEND_CONFIRMED` is `POST_SEND_PHANTOM_DRAFT`. It cannot be cleared, overwritten, focused, or sent while observing the current response, and it does not retroactively invalidate the canonical sent turn or block completion reads. At a later clean-conversation baseline in a provably reserved tab, it may enter `MANAGED_TASK_DRAFT`; otherwise apply the full stale-Codex classifier and preserve unmatched content as `PERSISTED_UNOWNED_DRAFT`.
 
 Model evidence may appear only after the composer becomes ready. Before each asynchronous wait, choose and record a finite deadline or maximum recheck count supported by the active browser surface. Record the chosen bound, observations, and exhaustion outcome. Do not infer the current conversation's selection from account tier, prior conversations, or product memory. If the input or model bound expires without evidence, enter `BLOCKED`; if a send-recovery bound expires, remain `SEND_UNKNOWN` and enter `BLOCKED`.
 
@@ -140,7 +154,9 @@ Enter `BLOCKED` for the consultation path when:
 - the required browser surface is unavailable;
 - authentication or human verification is required;
 - the target Pro or UI-labeled strongest reasoning tier cannot be identified or selected from visible page evidence;
-- a pre-input persisted draft lacks either complete write-ahead Skill provenance or exact task-local removal authorization;
+- a recognized stale Codex draft changes, fails its immediate pre-clear recheck, contains an attachment, coexists with a canonical user turn, or reappears after the one-shot reset;
+- a managed-task draft is not in a recorded reserved tab, changes, has an attachment or user turn, or reappears after the one-shot reset;
+- a pre-input draft matches neither current-epoch provenance nor the complete stale-Codex classifier and lacks exact task-local removal authorization;
 - an authorized one-shot draft reset is ambiguous or the draft reappears during the post-reload stabilization window;
 - canonical composer plaintext cannot be reconstructed unambiguously from the active editable root;
 - canonical payload hash, code-point length, marker count, attachment manifest, or composer identity differs after the one permitted initialization retry;
